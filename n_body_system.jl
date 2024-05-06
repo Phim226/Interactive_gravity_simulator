@@ -11,7 +11,6 @@ steps_per_frame = 250
 colours = [:black, :red, :blue, :green]
 
 num_particles = rand(2:4) # generate random number of particles between 2 and 4
-num_particles = 3
 particles = Vector{Point2f}([])
 init_pos = Vector{Float64}([])
 init_vel = Vector{Float64}([])
@@ -26,6 +25,8 @@ for i in 1:num_particles
     @show params[i+2]
 end
 
+# Remove comment from block below for manually inputting sim conditions 
+#=
 num_particles = 3
 params = [3, G, 1, 1, 1] 
 init_pos = [-1.0, 0.0, 1.0, 0.0, 0.0, 0.0]
@@ -33,7 +34,7 @@ p1 = 0.306893
 p2 = 0.125507
 init_vel = [p1, p2, p1, p2, -2p1, -2p2]
 particles = [Point2f(init_pos[2i-1], init_pos[2i]) for i in 1:num_particles]
-
+ =#
 particles = Observable(particles)
 
 function fa(dv, v, u, p, t)
