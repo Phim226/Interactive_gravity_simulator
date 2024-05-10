@@ -21,20 +21,18 @@ for i in 1:num_particles
     #append!(init_vel, (0.0,0.0))
     push!(particles, Point2f(init_pos[1], init_pos[2]))
     #push!(params, rand(Uniform(1.0, 5.0))) # add random particle weights to parameters,
-    push!(params, 1.0)
-    @show params[i+2]
+    push!(params, 1.0) # weight of particle
 end
 
-# Remove comment from block below for manually inputting sim conditions 
-#=
-num_particles = 3
+# Manually input initial conditions here 
+#= num_particles = 3
 params = [3, G, 1, 1, 1] 
-init_pos = [-1.0, 0.0, 1.0, 0.0, 0.0, 0.0]
-p1 = 0.306893
-p2 = 0.125507
-init_vel = [p1, p2, p1, p2, -2p1, -2p2]
-particles = [Point2f(init_pos[2i-1], init_pos[2i]) for i in 1:num_particles]
- =#
+init_pos = [-0.15934774719487366, 0.7791598189274951, 0.37322805777650814, 0.7311623519644381, -0.6840866845336071, -0.9943633409754717]
+init_vel = [-0.7880389812714281, 0.27170588390371564, -0.48427701549690827, 0.8305093388782598, 0.8440809991793201, 0.35358153764201217]
+particles = [Point2f(init_pos[2i-1], init_pos[2i]) for i in 1:num_particles] =#
+
+@show num_particles
+
 particles = Observable(particles)
 
 function fa(dv, v, u, p, t)
@@ -172,4 +170,5 @@ function run_sim(frames)
     end
 end
 
-run_sim(500)
+frames = 500 # run the simulation for this number of frames
+run_sim(frames)
