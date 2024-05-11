@@ -110,7 +110,7 @@ markersize = [params[i+2]*18 for i in 1:num_particles]
 colour = colours[1:num_particles]
 
 fig = Figure(); display(fig)
-ax = Axis(fig[1,1], limits = (-1.5,1.5,-1.5,1.5))
+ax = Axis(fig[1,1], limits = (-3,3,-3,3))
 scatter!(ax, particles; marker = :circle,
     color = colour, markersize = markersize
 )
@@ -170,5 +170,5 @@ function run_sim(frames)
     end
 end
 
-frames = 500 # run the simulation for this number of frames
+frames = 250 # run the simulation for this number of frames
 run_sim(frames)
