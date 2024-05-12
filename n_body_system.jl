@@ -7,8 +7,10 @@ using DataStructures: CircularBuffer
 
 const fps = 30
 G = 1 # gravitational constant with the units [au^3][solar mass^-1][sidereal year^-2] is 4π^2
-steps_per_frame = 250
-colours = [:black, :red, :blue, :green]
+steps_per_frame = 250 # number of steps performed by the integrator during each frame. Increasing this number will increase the "speed" of the simulation
+tspan = 0.0001 # time span for each step of the integrator
+traj_length = 2000 # length of the particle trajectory trails
+colours = [:black, :red, :blue, :green, :black, :red, :blue, :green] # colours for the particles and trajectories
 
 num_particles = rand(2:4) # generate random number of particles between 2 and 4
 particles = Vector{Point2f}([])
@@ -74,6 +76,10 @@ function fv(du, v, u, p, t)
     end
 end
 
+#= This condition function checks to see if the total magnitude of the total accelerations of all the particles is greater 
+or smaller than the predefined treshold. If either are true, and in the previous check it wasn't true, then the function returns true
+and triggers the affect! function.
+=#
 function condition(u, t, integ)
     dv = [norm([get_du(integ)[2i-1], get_du(integ)[2i]]) for i in 1:num_particles]
     accel_sum = sum(dv)
@@ -81,6 +87,10 @@ function condition(u, t, integ)
     return accel_bool
 end
 
+#= This function is triggered according to the conditions of the condition function above. It updates the trajectory update resolution values and 
+sets the trajectory update partition accordingly. If traj_update_per_frame is set to 15 then the number of steps per frame is split into 15 equal parts,
+and the trajectories are updated at each of those 15 points. If it is set to 1 then there is no partition at all, and the trajectory updates at the end of the frame.
+=#
 function affect!(integ)
     if traj_update_per_frame==high_res_traj_update
         global traj_update_per_frame=low_res_traj_update
@@ -91,24 +101,21 @@ function affect!(integ)
 end
 
 cb = DiscreteCallback(condition, affect!)
-
-tspan = 0.0001
 prob = DynamicalODEProblem(fa, fv, init_vel, init_pos, (0.0, tspan), params)
 integ = init(prob, KahanLi8(), callback = cb, dt = tspan)
 
-traj_length = 2000
+
+colour = colours[1:num_particles]
+
 trajectories = []
 for i in 1:num_particles
     traj = CircularBuffer{Point2f}(traj_length)
     fill!(traj, Point2f(init_pos[2i-1], init_pos[2i]))
-    #traj = Vector{Point2f}([Point2f(init_pos[2i-1], init_pos[2i])])
     traj = Observable(traj)
     push!(trajectories, traj)
 end
 
 markersize = [params[i+2]*18 for i in 1:num_particles]
-colour = colours[1:num_particles]
-
 fig = Figure(); display(fig)
 ax = Axis(fig[1,1], limits = (-3,3,-3,3))
 scatter!(ax, particles; marker = :circle,
@@ -121,51 +128,39 @@ for i in 1:num_particles
     lines!(ax, trajectories[i]; linewidth = 2, color = traj_colour)
 end
 
-low_res_traj_update = 1
+
+
+#= the following variables determine the resolution that the particle trajectories are plotted with.
+When traj_update_per_frame = low_res_traj_update = 1 then for each frame the trajectory is plotted from the
+value of the position at the beginning of the frame to the position at the end of the frame. However When
+traj_update_per_frame = high_res_traj_update = 15 then the trajectory is plotted every 1/15 of the steps performed during each frame
+to account for higher velocities/accelerations causing discontinuites between large position changes between frames.
+The traj_res_treshold is used in the calback to determine when to switch the value of traj_update_per_frame.  =#
+low_res_traj_update = 1 
 high_res_traj_update = 15
-traj_res_treshold = 50
+traj_res_treshold = 50 #
 traj_update_per_frame = low_res_traj_update
 traj_update_partition = [i*(trunc(Int, steps_per_frame/traj_update_per_frame)) for i in 1:traj_update_per_frame]
 
 function run_sim(frames)
     for i in 1:frames
-        p_index = 1
+        partition_index = 1
         for j in 1:steps_per_frame
             step!(integ)
             if length(traj_update_partition)==1
-                p_index=1
+                partition_index=1
             end
-            if j==traj_update_partition[p_index]
+            if j==traj_update_partition[partition_index]
                 for n in 1:num_particles
                     push!(trajectories[n][], Point2f(integ.u[2n+2num_particles-1], integ.u[2n+2num_particles]))
                     trajectories[n][] = trajectories[n][]
                 end
-                if p_index<traj_update_per_frame
-                    p_index +=1
+                if partition_index<traj_update_per_frame
+                    partition_index +=1
                 end
             end
         end
         particles[] = [Point2f(integ.u[2i+2num_particles-1], integ.u[2i+2num_particles]) for i in 1:num_particles]
-        #= println("--------------")
-        @show integ.t
-        println("")
-        dv1 = [get_du(integ)[1], get_du(integ)[2]]
-        dv2 = [get_du(integ)[3], get_du(integ)[4]]
-        dv3 = [get_du(integ)[5], get_du(integ)[6]]
-        du1 = [get_du(integ)[7], get_du(integ)[8]]
-        du2 = [get_du(integ)[9], get_du(integ)[10]]
-        du3 = [get_du(integ)[11], get_du(integ)[12]]
-        @show norm(dv1)
-        @show norm(du1)
-        println("")
-        @show norm(dv2)
-        @show norm(du2)
-        println("")
-        @show norm(dv3)
-        @show norm(du3)
-        println("")
-        @show traj_update_per_frame
-        println("--------------") =#
         sleep(1/fps)
     end
 end
