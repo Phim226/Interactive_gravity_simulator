@@ -7,10 +7,23 @@ using DataStructures: CircularBuffer
 
 const fps = 30
 G = 1 # gravitational constant with the units [au^3][solar mass^-1][sidereal year^-2] is 4π^2
+frames = 250 # run the simulation for this number of frames
 steps_per_frame = 250 # number of steps performed by the integrator during each frame. Increasing this number will increase the "speed" of the simulation
 tspan = 0.0001 # time span for each step of the integrator
 traj_length = 2000 # length of the particle trajectory trails
 colours = [:black, :red, :blue, :green, :black, :red, :blue, :green] # colours for the particles and trajectories
+
+#= the following variables determine the resolution that the particle trajectories are plotted with.
+When traj_update_per_frame = low_res_traj_update = 1 then for each frame the trajectory is plotted from the
+value of the position at the beginning of the frame to the position at the end of the frame. However When
+traj_update_per_frame = high_res_traj_update = 15 then the trajectory is plotted every 1/15 of the steps performed during each frame
+to account for higher velocities/accelerations causing discontinuites between large position changes between frames.
+The traj_res_treshold is used in the calback to determine when to switch the value of traj_update_per_frame.  =#
+low_res_traj_update = 1 
+high_res_traj_update = 15
+traj_res_treshold = 50 
+traj_update_per_frame = low_res_traj_update
+traj_update_partition = [i*(trunc(Int, steps_per_frame/traj_update_per_frame)) for i in 1:traj_update_per_frame]
 
 num_particles = rand(2:4) # generate random number of particles between 2 and 4
 particles = Vector{Point2f}([])
@@ -34,6 +47,8 @@ init_vel = [-0.7880389812714281, 0.27170588390371564, -0.48427701549690827, 0.83
 particles = [Point2f(init_pos[2i-1], init_pos[2i]) for i in 1:num_particles] =#
 
 @show num_particles
+
+colour = colours[1:num_particles]
 
 particles = Observable(particles)
 
@@ -76,7 +91,7 @@ function fv(du, v, u, p, t)
     end
 end
 
-#= This condition function checks to see if the total magnitude of the total accelerations of all the particles is greater 
+#= This condition function checks to see if the total magnitude of the accelerations of all the particles is greater 
 or smaller than the predefined treshold. If either are true, and in the previous check it wasn't true, then the function returns true
 and triggers the affect! function.
 =#
@@ -100,49 +115,45 @@ function affect!(integ)
     global traj_update_partition = [i*(trunc(Int, steps_per_frame/traj_update_per_frame)) for i in 1:traj_update_per_frame]
 end
 
-cb = DiscreteCallback(condition, affect!)
-prob = DynamicalODEProblem(fa, fv, init_vel, init_pos, (0.0, tspan), params)
-integ = init(prob, KahanLi8(), callback = cb, dt = tspan)
-
-
-colour = colours[1:num_particles]
-
-trajectories = []
-for i in 1:num_particles
-    traj = CircularBuffer{Point2f}(traj_length)
-    fill!(traj, Point2f(init_pos[2i-1], init_pos[2i]))
-    traj = Observable(traj)
-    push!(trajectories, traj)
+function initialise_integrator()
+    cb = DiscreteCallback(condition, affect!)
+    prob = DynamicalODEProblem(fa, fv, init_vel, init_pos, (0.0, tspan), params)
+    integ = init(prob, KahanLi8(), callback = cb, dt = tspan)
+    return integ
 end
 
-markersize = [params[i+2]*18 for i in 1:num_particles]
-fig = Figure(); display(fig)
-ax = Axis(fig[1,1], limits = (-3,3,-3,3))
-scatter!(ax, particles; marker = :circle,
-    color = colour, markersize = markersize
-)
+function initialise_figure()
+    markersize = [params[i+2]*18 for i in 1:num_particles]
+    fig = Figure(); display(fig)
+    ax = Axis(fig[1,1], limits = (-3,3,-3,3))
+    scatter!(ax, particles; marker = :circle,
+        color = colour, markersize = markersize
+    )
+    return ax
+end
 
-for i in 1:num_particles
-    col = to_color(colour[i])
-    traj_colour = [RGBAf(col.r, col.g, col.b, (i/traj_length)^2) for i in 1:traj_length]
-    lines!(ax, trajectories[i]; linewidth = 2, color = traj_colour)
+function initialise_trajectories(ax)
+    trajectories = []
+    for i in 1:num_particles
+        traj = CircularBuffer{Point2f}(traj_length)
+        fill!(traj, Point2f(init_pos[2i-1], init_pos[2i]))
+        traj = Observable(traj)
+        push!(trajectories, traj)
+    end
+
+    for i in 1:num_particles
+        col = to_color(colour[i])
+        traj_colour = [RGBAf(col.r, col.g, col.b, (i/traj_length)^2) for i in 1:traj_length]
+        lines!(ax, trajectories[i]; linewidth = 2, color = traj_colour)
+    end
+    return trajectories
 end
 
 
 
-#= the following variables determine the resolution that the particle trajectories are plotted with.
-When traj_update_per_frame = low_res_traj_update = 1 then for each frame the trajectory is plotted from the
-value of the position at the beginning of the frame to the position at the end of the frame. However When
-traj_update_per_frame = high_res_traj_update = 15 then the trajectory is plotted every 1/15 of the steps performed during each frame
-to account for higher velocities/accelerations causing discontinuites between large position changes between frames.
-The traj_res_treshold is used in the calback to determine when to switch the value of traj_update_per_frame.  =#
-low_res_traj_update = 1 
-high_res_traj_update = 15
-traj_res_treshold = 50 #
-traj_update_per_frame = low_res_traj_update
-traj_update_partition = [i*(trunc(Int, steps_per_frame/traj_update_per_frame)) for i in 1:traj_update_per_frame]
-
-function run_sim(frames)
+function run_sim(frames, integ, trajectories)
+    @show init_pos
+    @show init_vel
     for i in 1:frames
         partition_index = 1
         for j in 1:steps_per_frame
@@ -165,5 +176,7 @@ function run_sim(frames)
     end
 end
 
-frames = 250 # run the simulation for this number of frames
-run_sim(frames)
+ax = initialise_figure()
+trajectories = initialise_trajectories(ax)
+integ = initialise_integrator()
+run_sim(frames, integ, trajectories)
